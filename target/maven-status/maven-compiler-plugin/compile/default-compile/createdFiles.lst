@@ -1,7 +1,7 @@
 flavio/API/model/CarteiraItem$CarteiraItemBuilder.class
 flavio/API/repository/CarteiraItemRepository.class
-flavio/API/dto/BrapiResponse$BrapiQuote.class
 flavio/API/model/Cotacao$CotacaoBuilder.class
+flavio/API/dto/BrapiResponse$BrapiQuoteItem.class
 flavio/API/repository/UsuarioRepository.class
 flavio/API/model/Usuario$UsuarioBuilder.class
 flavio/API/service/CarteiraService.class
@@ -9,6 +9,7 @@ flavio/API/service/CotacaoService.class
 flavio/API/model/CarteiraItem.class
 flavio/API/dto/BrapiResponse.class
 flavio/API/ApiApplication.class
+flavio/API/dto/BrapiResponse$BrapiQuoteData.class
 flavio/API/model/Cotacao.class
 flavio/API/dto/AdicionarTickerRequest.class
 flavio/API/controller/CarteiraController.class

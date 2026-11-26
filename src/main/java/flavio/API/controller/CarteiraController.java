@@ -11,11 +11,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/carteira")
+@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 @Tag(name = "Carteira B3", description = "Gerenciamento de tickers e consulta de cotações")
 public class CarteiraController {
