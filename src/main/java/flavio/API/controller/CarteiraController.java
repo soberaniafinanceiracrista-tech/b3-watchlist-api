@@ -8,9 +8,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 @RestController
@@ -24,20 +24,19 @@ public class CarteiraController {
     private final CotacaoService cotacaoService;
 
     @PostMapping("/ativos")
-    @Operation(summary = "Adiciona um ticker na carteira e busca a cotação atual")
-    public ResponseEntity<Void> adicionarAtivo(@RequestBody @Valid AdicionarTickerRequest request) {
-        carteiraService.adicionarTicker(request.email(), request.ticker());
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+    @Operation(summary = "Consulta ou adiciona um ou mais tickers (separados por vírgula)")
+    public ResponseEntity<List<AtivoCarteiraDTO>> consultarOuAdicionar(@RequestBody @Valid AdicionarTickerRequest request) {
+        return ResponseEntity.ok(carteiraService.consultarOuAdicionarTickers(request.email(), request.tickers()));
     }
 
     @GetMapping
-    @Operation(summary = "Lista todos os ativos da carteira com preço e variação do dia")
-    public ResponseEntity<List<AtivoCarteiraDTO>> listarCarteira(@RequestParam String email) {
+    @Operation(summary = "Lista todos os ativos da carteira do e-mail informado")
+    public ResponseEntity<List<AtivoCarteiraDTO>> listarCarteira(@RequestParam(required = false) String email) {
         return ResponseEntity.ok(carteiraService.listarCarteira(email));
     }
 
     @DeleteMapping("/ativos/{ticker}")
-    @Operation(summary = "Remove um ticker da carteira")
+    @Operation(summary = "Remove um ticker da carteira do e-mail informado")
     public ResponseEntity<Void> removerAtivo(@RequestParam String email, @PathVariable String ticker) {
         carteiraService.removerTicker(email, ticker);
         return ResponseEntity.noContent().build();

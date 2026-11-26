@@ -4,6 +4,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 public record AdicionarTickerRequest(
-    @NotBlank @Email String email,
-    @NotBlank String ticker
+    @Email(message = "E-mail inválido") String email,
+    @NotBlank(message = "Informe ao menos um ticker") String tickers
 ) {}
