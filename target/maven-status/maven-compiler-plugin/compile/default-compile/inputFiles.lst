@@ -1,0 +1,14 @@
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/ApiApplication.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/SwaggerConfiguration.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/controller/CarteiraController.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/dto/AdicionarTickerRequest.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/dto/AtivoCarteiraDTO.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/dto/BrapiResponse.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/model/CarteiraItem.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/model/Cotacao.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/model/Usuario.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/repository/CarteiraItemRepository.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/repository/CotacaoRepository.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/repository/UsuarioRepository.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/service/CarteiraService.java
+/workspaces/b3-watchlist-api/src/main/java/flavio/API/service/CotacaoService.java
