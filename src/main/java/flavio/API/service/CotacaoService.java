@@ -39,7 +39,7 @@ public class CotacaoService {
     private Set<String> simbolosCriptoCache = Collections.emptySet();
     private Instant ultimaAtualizacaoCacheCripto = Instant.EPOCH;
 
-    public CotacaoService(CotacaoRepository cotacaoRepository,
+       public CotacaoService(CotacaoRepository cotacaoRepository,
                           CarteiraItemRepository carteiraItemRepository,
                           @Value("${brapi.token}") String brapiToken,
                           @Value("${coingecko.api-key}") String coinGeckoApiKey) {
