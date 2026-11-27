@@ -1,13 +1,14 @@
 package flavio.API.service;
 
-import flavio.API.dto.BrapiCryptoAvailableResponse;
-import flavio.API.dto.BrapiCryptoResponse;
 import flavio.API.dto.BrapiResponse;
+import flavio.API.dto.CoinGeckoCoinDto;
+import flavio.API.dto.CoinGeckoPriceDto;
 import flavio.API.model.Cotacao;
 import flavio.API.repository.CarteiraItemRepository;
 import flavio.API.repository.CotacaoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -19,31 +20,44 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
 public class CotacaoService {
 
-    private final RestClient restClient;
+    // Padrão B3: 4 letras + 1 ou 2 dígitos (ex: PETR4, MXRF11, AAPL34, PETR4F)
+    private static final Pattern PADRAO_TICKER_B3 = Pattern.compile("^[A-Z]{4}\\d{1,2}[A-Z]?$");
+
+    private final RestClient brapiClient;
+    private final RestClient coinGeckoClient;
     private final CotacaoRepository cotacaoRepository;
     private final CarteiraItemRepository carteiraItemRepository;
 
-    private Set<String> criptosDisponiveisCache = Collections.emptySet();
+    private Set<String> simbolosCriptoCache = Collections.emptySet();
     private Instant ultimaAtualizacaoCacheCripto = Instant.EPOCH;
 
     public CotacaoService(CotacaoRepository cotacaoRepository,
                           CarteiraItemRepository carteiraItemRepository,
-                          @Value("${brapi.token}") String brapiToken) {
+                          @Value("${brapi.token}") String brapiToken,
+                          @Value("${coingecko.api-key}") String coinGeckoApiKey) {
         this.cotacaoRepository = cotacaoRepository;
         this.carteiraItemRepository = carteiraItemRepository;
-        this.restClient = RestClient.builder()
-                .baseUrl("https://brapi.dev/api/v2")
+
+        this.brapiClient = RestClient.builder()
+                .baseUrl("https://brapi.dev")
                 .defaultHeader("Authorization", "Bearer " + brapiToken)
+                .build();
+
+        this.coinGeckoClient = RestClient.builder()
+                .baseUrl("https://coingecko.com")
+                .defaultHeader("x-cg-demo-api-key", coinGeckoApiKey)
                 .build();
     }
 
-    // Atualiza a cada 20 min durante o pregão da B3 (10h às 18h, seg a sex)
+    // Atualiza todos os ativos durante o pregão da B3 (10h às 18h, seg a sex)
     @Scheduled(cron = "0 */20 10-18 * * MON-FRI", zone = "America/Sao_Paulo")
     public void atualizarTodasCotacoes() {
         List<String> tickers = carteiraItemRepository.findAllDistinctTickers();
@@ -54,27 +68,20 @@ public class CotacaoService {
         log.info("Iniciando atualização de {} tickers...", tickers.size());
         for (String ticker : tickers) {
             buscarESalvarTicker(ticker);
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            pausarEntreRequisicoes();
         }
     }
 
-    // Opcional: Atualiza apenas criptoativos fora do horário da B3 (noite e fins de semana)
-    @Scheduled(cron = "0 0 * * * *", zone = "America/Sao_Paulo")
+    // Atualiza apenas criptoativos a cada hora fora do pregão (noite e fins de semana)
+    @Scheduled(cron = "0 0 0-9,19-23 * * *", zone = "America/Sao_Paulo")
+    @Scheduled(cron = "0 0 * * * SAT,SUN", zone = "America/Sao_Paulo")
     public void atualizarCriptosForaDoPregao() {
         List<String> tickers = carteiraItemRepository.findAllDistinctTickers();
         for (String ticker : tickers) {
             String tickerLimpo = ticker.trim().toUpperCase();
             if (isCriptoativo(tickerLimpo)) {
                 buscarESalvarCripto(tickerLimpo);
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+                pausarEntreRequisicoes();
             }
         }
     }
@@ -90,68 +97,83 @@ public class CotacaoService {
     }
 
     private boolean isCriptoativo(String ticker) {
-        // Atualiza o cache da lista de criptos a cada 24 horas
-        if (criptosDisponiveisCache.isEmpty() ||
-                Instant.now().isAfter(ultimaAtualizacaoCacheCripto.plus(24, ChronoUnit.HOURS))) {
-            carregarCriptosDisponiveis();
+        // 1. Se segue o padrão da B3 (ex: PETR4, HGLG11), não é cripto
+        if (PADRAO_TICKER_B3.matcher(ticker).matches()) {
+            return false;
         }
-        return criptosDisponiveisCache.contains(ticker);
+
+        // 2. Carrega ou atualiza o cache de criptomoedas da CoinGecko a cada 24h
+        if (simbolosCriptoCache.isEmpty() ||
+                Instant.now().isAfter(ultimaAtualizacaoCacheCripto.plus(24, ChronoUnit.HOURS))) {
+            carregarListaCriptos();
+        }
+
+        // 3. Verifica se o ticker está na lista da CoinGecko (ou assume cripto se o cache falhar e não for B3)
+        return simbolosCriptoCache.isEmpty() || simbolosCriptoCache.contains(ticker);
     }
 
-    private void carregarCriptosDisponiveis() {
+    private void carregarListaCriptos() {
         try {
-            BrapiCryptoAvailableResponse response = restClient.get()
-                    .uri("/crypto/available")
+            List<CoinGeckoCoinDto> coins = coinGeckoClient.get()
+                    .uri("/coins/list")
                     .retrieve()
-                    .body(BrapiCryptoAvailableResponse.class);
+                    .body(new ParameterizedTypeReference<>() {});
 
-            if (response != null && response.coins() != null) {
-                Set<String> moedas = new HashSet<>();
-                for (String coin : response.coins()) {
-                    moedas.add(coin.trim().toUpperCase());
+            if (coins != null && !coins.isEmpty()) {
+                Set<String> simbolos = new HashSet<>();
+                for (CoinGeckoCoinDto coin : coins) {
+                    if (coin.symbol() != null) {
+                        simbolos.add(coin.symbol().trim().toUpperCase());
+                    }
                 }
-                this.criptosDisponiveisCache = moedas;
+                this.simbolosCriptoCache = simbolos;
                 this.ultimaAtualizacaoCacheCripto = Instant.now();
-                log.info("Cache de criptoativos atualizado com {} moedas.", moedas.size());
+                log.info("Cache da CoinGecko atualizado com {} símbolos de criptoativos.", simbolos.size());
             }
         } catch (RestClientException e) {
-            log.error("Erro ao carregar lista de criptoativos disponíveis: {}", e.getMessage());
+            log.error("Erro ao carregar lista de criptos da CoinGecko: {}", e.getMessage());
         }
     }
 
-    private void buscarESalvarCripto(String coin) {
+    private void buscarESalvarCripto(String symbol) {
+        String symbolLower = symbol.toLowerCase();
         try {
-            BrapiCryptoResponse response = restClient.get()
+            Map<String, CoinGeckoPriceDto> response = coinGeckoClient.get()
                     .uri(uriBuilder -> uriBuilder
-                            .path("/crypto")
-                            .queryParam("coin", coin)
-                            .queryParam("currency", "BRL")
+                            .path("/simple/price")
+                            .queryParam("symbols", symbolLower)
+                            .queryParam("vs_currencies", "brl")
+                            .queryParam("include_24hr_change", "true")
                             .build())
                     .retrieve()
-                    .body(BrapiCryptoResponse.class);
+                    .body(new ParameterizedTypeReference<>() {});
 
-            if (response != null && response.coins() != null && !response.coins().isEmpty()) {
-                var item = response.coins().getFirst();
-                Cotacao cotacao = Cotacao.builder()
-                        .ticker(coin)
-                        .precoAtual(item.regularMarketPrice())
-                        .variacaoDia(item.regularMarketChangePercent())
-                        .atualizadoEm(OffsetDateTime.now())
-                        .build();
-                cotacaoRepository.save(cotacao);
-                log.info("Cotação CRIPTO salva para {}: R$ {} ({}%)",
-                        coin, cotacao.getPrecoAtual(), cotacao.getVariacaoDia());
+            if (response != null && response.containsKey(symbolLower)) {
+                CoinGeckoPriceDto dados = response.get(symbolLower);
+                if (dados != null && dados.brl() != null) {
+                    Cotacao cotacao = Cotacao.builder()
+                            .ticker(symbol)
+                            .precoAtual(dados.brl())
+                            .variacaoDia(dados.brl24hChange())
+                            .atualizadoEm(OffsetDateTime.now())
+                            .build();
+                    cotacaoRepository.save(cotacao);
+                    log.info("Cotação CRIPTO salva para {}: R$ {} ({}%)",
+                            symbol, cotacao.getPrecoAtual(), cotacao.getVariacaoDia());
+                }
+            } else {
+                log.warn("Criptoativo não encontrado na CoinGecko: {}", symbol);
             }
         } catch (RestClientException e) {
-            log.warn("Criptoativo não encontrado ou erro ao consultar {}: {}", coin, e.getMessage());
+            log.warn("Erro ao consultar criptoativo {} na CoinGecko: {}", symbol, e.getMessage());
         }
     }
 
     private void buscarESalvarAcao(String tickerLimpo) {
         try {
-            BrapiResponse response = restClient.get()
+            BrapiResponse response = brapiClient.get()
                     .uri(uriBuilder -> uriBuilder
-                            .path("/stocks/quote")
+                            .path("/quote")
                             .queryParam("symbols", tickerLimpo)
                             .build())
                     .retrieve()
@@ -175,6 +197,12 @@ public class CotacaoService {
             log.warn("Ativo B3 não encontrado ou erro ao consultar {}: {}", tickerLimpo, e.getMessage());
         }
     }
+
+    private void pausarEntreRequisicoes() {
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
 }
-
-
