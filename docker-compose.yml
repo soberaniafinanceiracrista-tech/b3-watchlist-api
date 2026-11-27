@@ -11,8 +11,9 @@ services:
       - SPRING_DATASOURCE_URL=${SUPABASE_JDBC_URL}
       - SPRING_DATASOURCE_USERNAME=${SUPABASE_USER}
       - SPRING_DATASOURCE_PASSWORD=${SUPABASE_PASSWORD}
-      - BRAPI_TOKEN=${BRAPI_TOKEN}
-      - TZ=America/Sao_Paulo
+      - BRAPI_TOKEN=${BRAPI_TOKEN} 
+      - COINGECKO_API_KEY=${COINGECKO_API_KEY}
+      - TZ=America/Sao_Paulo 
     restart: unless-stopped
 
   # Serviço opcional: rode com `docker compose --profile local up` se quiser testar em um Postgres local
