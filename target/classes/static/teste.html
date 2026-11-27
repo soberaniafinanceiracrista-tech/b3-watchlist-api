@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Cotações - B3 & Cripto</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background-color: #1e293b;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            width: 100%;
+            max-width: 420px;
+        }
+        h2 { margin-top: 0; color: #38bdf8; }
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+        input {
+            flex: 1;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+            font-size: 1rem;
+            text-transform: uppercase;
+        }
+        button {
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 8px;
+            background-color: #0284c7;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:hover { background-color: #0369a1; }
+        button.secondary {
+            width: 100%;
+            background-color: #334155;
+            margin-bottom: 1rem;
+        }
+        button.secondary:hover { background-color: #475569; }
+        .atalhos {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .chip {
+            background: #334155;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .chip:hover { background: #475569; }
+        pre {
+            background: #0f172a;
+            padding: 1rem;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 0.9rem;
+            border: 1px solid #334155;
+            min-height: 60px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Testar Cotações (B3 & Cripto)</h2>
+        <div class="atalhos">
+            <span class="chip" onclick="testar('BTC')">BTC</span>
+            <span class="chip" onclick="testar('ETH')">ETH</span>
+            <span class="chip" onclick="testar('SOL')">SOL</span>
+            <span class="chip" onclick="testar('PETR4')">PETR4</span>
+            <span class="chip" onclick="testar('MXRF11')">MXRF11</span>
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="tickerInput" placeholder="Ex: BTC ou PETR4">
+            <button onclick="atualizarTicker()">Atualizar</button>
+        </div>
+
+        <button class="secondary" onclick="atualizarTodas()">Atualizar Toda a Carteira</button>
+
+        <pre id="resultado">Aguardando teste...</pre>
+    </div>
+
+    <script>
+        function testar(simbolo) {
+            document.getElementById('tickerInput').value = simbolo;
+            atualizarTicker();
+        }
+
+        async function atualizarTicker() {
+            const ticker = document.getElementById('tickerInput').value.trim();
+            const resBox = document.getElementById('resultado');
+            if (!ticker) {
+                resBox.textContent = 'Digite um ticker primeiro.';
+                return;
+            }
+            resBox.textContent = `Consultando ${ticker.toUpperCase()}...`;
+            try {
+                const response = await fetch(`/api/cotacoes/atualizar/${encodeURIComponent(ticker)}`, {
+                    method: 'POST'
+                });
+                const texto = await response.text();
+                resBox.textContent = `Status: ${response.status}\n${texto}`;
+            } catch (err) {
+                resBox.textContent = `Erro de rede: ${err.message}`;
+            }
+        }
+
+        async function atualizarTodas() {
+            const resBox = document.getElementById('resultado');
+            resBox.textContent = 'Atualizando todos os ativos da carteira...';
+            try {
+                const response = await fetch('/api/cotacoes/atualizar-todas', {
+                    method: 'POST'
+                });
+                const texto = await response.text();
+                resBox.textContent = `Status: ${response.status}\n${texto}`;
+            } catch (err) {
+                resBox.textContent = `Erro de rede: ${err.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

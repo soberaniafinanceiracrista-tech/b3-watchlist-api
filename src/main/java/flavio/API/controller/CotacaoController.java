@@ -1,5 +1,6 @@
 package flavio.API.controller;
 
+import flavio.API.model.Cotacao;
 import flavio.API.service.CotacaoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,9 +18,12 @@ public class CotacaoController {
 
     @PostMapping("/atualizar/{ticker}")
     @Operation(summary = "Atualiza manualmente a cotação de um ticker (ex: PETR4 ou BTC)")
-    public ResponseEntity<String> atualizarTicker(@PathVariable String ticker) {
-        cotacaoService.buscarESalvarTicker(ticker);
-        return ResponseEntity.ok("Solicitação de atualização concluída para o ticker: " + ticker.toUpperCase());
+    public ResponseEntity<Cotacao> atualizarTicker(@PathVariable String ticker) {
+        Cotacao cotacao = cotacaoService.buscarESalvarTicker(ticker);
+        if (cotacao == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(cotacao);
     }
 
     @PostMapping("/atualizar-todas")
