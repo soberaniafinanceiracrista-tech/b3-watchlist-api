@@ -4,6 +4,8 @@ flavio/API/dto/CoinGeckoCoinDto.class
 flavio/API/dto/BrapiCryptoResponse$CryptoItem.class
 flavio/API/dto/BrapiCryptoResponse.class
 flavio/API/dto/BrapiResponse.class
+flavio/API/dto/AtualizarQuantidadeRequest.class
+flavio/API/dto/ResumoCarteiraDTO.class
 flavio/API/dto/BrapiResponse$BrapiQuoteData.class
 flavio/API/config/SecurityConfig.class
 flavio/API/dto/AdicionarTickerRequest.class

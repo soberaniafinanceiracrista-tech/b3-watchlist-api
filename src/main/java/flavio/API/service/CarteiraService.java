@@ -1,5 +1,7 @@
 package flavio.API.service;
+
 import flavio.API.dto.AtivoCarteiraDTO;
+import flavio.API.dto.ResumoCarteiraDTO;
 import flavio.API.model.CarteiraItem;
 import flavio.API.model.Usuario;
 import flavio.API.repository.CarteiraItemRepository;
@@ -9,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.List;
 
@@ -40,43 +44,93 @@ public class CarteiraService {
     }
 
     @Transactional
-    public List<AtivoCarteiraDTO> consultarOuAdicionarTickers(String email, String tickersTexto) {
+    public ResumoCarteiraDTO consultarOuAdicionarTickers(String email, String tickersTexto, BigDecimal quantidadeInformada) {
         List<String> listaTickers = extrairTickers(tickersTexto);
         boolean temEmail = email != null && !email.isBlank();
+        BigDecimal qtd = (quantidadeInformada != null && quantidadeInformada.compareTo(BigDecimal.ZERO) > 0)
+                ? quantidadeInformada
+                : BigDecimal.ONE;
 
         Usuario usuario = temEmail ? obterOuCriarUsuario(email) : null;
 
         for (String ticker : listaTickers) {
-            // Se informou e-mail, salva na carteira permanente do banco
-            if (usuario != null && !carteiraItemRepository.existsByUsuarioIdAndTickerIgnoreCase(usuario.getId(), ticker)) {
-                carteiraItemRepository.save(CarteiraItem.builder()
-                        .usuario(usuario)
-                        .ticker(ticker)
-                        .build());
+            if (usuario != null) {
+                CarteiraItem item = carteiraItemRepository
+                        .findByUsuarioIdAndTickerIgnoreCase(usuario.getId(), ticker)
+                        .orElseGet(() -> CarteiraItem.builder()
+                                .usuario(usuario)
+                                .ticker(ticker)
+                                .build());
+
+                item.setQuantidade(qtd);
+                carteiraItemRepository.save(item);
             }
-            // Busca/atualiza a cotação na Brapi e salva na tabela cotacoes
             cotacaoService.buscarESalvarTicker(ticker);
         }
 
-        // Se tem e-mail, retorna toda a carteira salva dele; senão, retorna apenas os tickers pesquisados agora
+        List<AtivoCarteiraDTO> ativosBrutos;
         if (usuario != null) {
-            return carteiraItemRepository.buscarCarteiraComCotacoes(usuario.getId());
+            ativosBrutos = carteiraItemRepository.buscarCarteiraComCotacoes(usuario.getId());
         } else {
-            return listaTickers.stream()
+            ativosBrutos = listaTickers.stream()
                     .map(t -> cotacaoRepository.findById(t)
-                            .map(c -> new AtivoCarteiraDTO(c.getTicker(), c.getPrecoAtual(), c.getVariacaoDia(), c.getAtualizadoEm()))
-                            .orElse(new AtivoCarteiraDTO(t, null, null, null)))
+                            .map(c -> new AtivoCarteiraDTO(c.getTicker(), qtd, c.getPrecoAtual(), BigDecimal.ZERO, c.getVariacaoDia(), c.getAtualizadoEm()))
+                            .orElse(new AtivoCarteiraDTO(t, qtd, null, BigDecimal.ZERO, null, null)))
                     .toList();
         }
+
+        return calcularTotais(ativosBrutos);
     }
 
+        @Transactional
+    public ResumoCarteiraDTO atualizarQuantidade(String email, String ticker, BigDecimal novaQuantidade) {
+        Usuario usuario = obterOuCriarUsuario(email);
+        CarteiraItem item = carteiraItemRepository
+                .findByUsuarioIdAndTickerIgnoreCase(usuario.getId(), ticker.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Ativo não encontrado na carteira: " + ticker));
+
+        item.setQuantidade(novaQuantidade);
+        carteiraItemRepository.save(item);
+
+        List<AtivoCarteiraDTO> ativosBrutos = carteiraItemRepository.buscarCarteiraComCotacoes(usuario.getId());
+        return calcularTotais(ativosBrutos);
+    }
+
+
     @Transactional(readOnly = true)
-    public List<AtivoCarteiraDTO> listarCarteira(String email) {
+    public ResumoCarteiraDTO listarCarteira(String email) {
         if (email == null || email.isBlank()) {
-            return List.of();
+            return new ResumoCarteiraDTO(BigDecimal.ZERO, List.of());
         }
         Usuario usuario = obterOuCriarUsuario(email);
-        return carteiraItemRepository.buscarCarteiraComCotacoes(usuario.getId());
+        List<AtivoCarteiraDTO> ativosBrutos = carteiraItemRepository.buscarCarteiraComCotacoes(usuario.getId());
+        return calcularTotais(ativosBrutos);
+    }
+
+    private ResumoCarteiraDTO calcularTotais(List<AtivoCarteiraDTO> ativosBrutos) {
+        List<AtivoCarteiraDTO> ativosCalculados = ativosBrutos.stream()
+                .map(ativo -> {
+                    BigDecimal totalAtivo = (ativo.precoAtual() != null && ativo.quantidade() != null)
+                            ? ativo.precoAtual().multiply(ativo.quantidade()).setScale(2, RoundingMode.HALF_UP)
+                            : BigDecimal.ZERO;
+
+                    return new AtivoCarteiraDTO(
+                            ativo.ticker(),
+                            ativo.quantidade(),
+                            ativo.precoAtual(),
+                            totalAtivo,
+                            ativo.variacaoDia(),
+                            ativo.atualizadoEm()
+                    );
+                })
+                .toList();
+
+        BigDecimal totalCarteira = ativosCalculados.stream()
+                .map(AtivoCarteiraDTO::valorTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        return new ResumoCarteiraDTO(totalCarteira, ativosCalculados);
     }
 
     @Transactional

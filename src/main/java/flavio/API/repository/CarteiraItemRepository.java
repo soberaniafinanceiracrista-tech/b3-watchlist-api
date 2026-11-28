@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface CarteiraItemRepository extends JpaRepository<CarteiraItem, Long> {
@@ -15,12 +16,16 @@ public interface CarteiraItemRepository extends JpaRepository<CarteiraItem, Long
 
     boolean existsByUsuarioIdAndTickerIgnoreCase(UUID usuarioId, String ticker);
 
+    Optional<CarteiraItem> findByUsuarioIdAndTickerIgnoreCase(UUID usuarioId, String ticker);
+
     void deleteByUsuarioIdAndTickerIgnoreCase(UUID usuarioId, String ticker);
 
     @Query("""
         SELECT new flavio.API.dto.AtivoCarteiraDTO(
             ci.ticker,
+            ci.quantidade,
             cot.precoAtual,
+            CAST(0 AS java.math.BigDecimal),
             cot.variacaoDia,
             cot.atualizadoEm
         )

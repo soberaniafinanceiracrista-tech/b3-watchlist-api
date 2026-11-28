@@ -1,7 +1,7 @@
 package flavio.API.controller;
 
 import flavio.API.dto.AdicionarTickerRequest;
-import flavio.API.dto.AtivoCarteiraDTO;
+import flavio.API.dto.ResumoCarteiraDTO;
 import flavio.API.service.CarteiraService;
 import flavio.API.service.CotacaoService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,9 +9,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import flavio.API.dto.AtualizarQuantidadeRequest;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/carteira")
@@ -24,14 +23,16 @@ public class CarteiraController {
     private final CotacaoService cotacaoService;
 
     @PostMapping("/ativos")
-    @Operation(summary = "Consulta ou adiciona um ou mais tickers (separados por vírgula)")
-    public ResponseEntity<List<AtivoCarteiraDTO>> consultarOuAdicionar(@RequestBody @Valid AdicionarTickerRequest request) {
-        return ResponseEntity.ok(carteiraService.consultarOuAdicionarTickers(request.email(), request.tickers()));
+    @Operation(summary = "Consulta ou adiciona tickers com quantidade opcional")
+    public ResponseEntity<ResumoCarteiraDTO> consultarOuAdicionar(@RequestBody @Valid AdicionarTickerRequest request) {
+        return ResponseEntity.ok(
+            carteiraService.consultarOuAdicionarTickers(request.email(), request.tickers(), request.quantidade())
+        );
     }
 
     @GetMapping
-    @Operation(summary = "Lista todos os ativos da carteira do e-mail informado")
-    public ResponseEntity<List<AtivoCarteiraDTO>> listarCarteira(@RequestParam(required = false) String email) {
+    @Operation(summary = "Lista todos os ativos e o valor total da carteira do e-mail informado")
+    public ResponseEntity<ResumoCarteiraDTO> listarCarteira(@RequestParam(required = false) String email) {
         return ResponseEntity.ok(carteiraService.listarCarteira(email));
     }
 
@@ -48,4 +49,15 @@ public class CarteiraController {
         cotacaoService.atualizarTodasCotacoes();
         return ResponseEntity.accepted().build();
     }
+
+    @PatchMapping("/ativos/{ticker}")
+    @Operation(summary = "Atualiza apenas a quantidade de um ativo já salvo na carteira")
+    public ResponseEntity<ResumoCarteiraDTO> atualizarQuantidade(
+            @PathVariable String ticker,
+            @RequestBody @Valid AtualizarQuantidadeRequest request) {
+        return ResponseEntity.ok(
+            carteiraService.atualizarQuantidade(request.email(), ticker, request.quantidade())
+        );
+    }
+
 }
